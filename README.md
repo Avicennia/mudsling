@@ -2,6 +2,7 @@
 A most modestly made mudsling mod merely meant for mirthful midsummer Minetest monkeyshining
 
 ![](https://github.com/Avicennia/mudsling/blob/main/screenshot.png)
+
 When you want Tinker's Construct but your mom says, "We have Slimesling at home."
 
 ## Usage
