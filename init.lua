@@ -224,3 +224,11 @@ minetest.register_on_joinplayer(function(obj)
     local name = obj:get_player_name()
     mudsling.addPlayer(name)
 end)
+minetest.register_craft({
+    output = modname .. ":sling",
+    recipe = {
+        {"default:dirt_with_grass","bucket:bucket_water","default:dirt_with_grass"},
+        {"default:dirt_with_grass","default:dirt_with_grass","default:dirt_with_grass"},
+        {"","default:dirt_with_grass",""}
+    },
+})
