@@ -8,6 +8,9 @@ mudsling.players = {}
 mudsling.GRAVITY_BASE = 0.987
 mudsling.POWER_MAX = 12
 
+minetest.after(4, function() end)
+
+
 mudsling.checkPlayer = function(name)
     return mudsling.players[name]
 end
@@ -224,6 +227,25 @@ minetest.register_on_joinplayer(function(obj)
     local name = obj:get_player_name()
     mudsling.addPlayer(name)
 end)
+if(nodecore and nodecore.register_craft)then
+    nodecore.register_craft({
+        action = "pummel",
+        label = "Shape the most exquisite slingshot out of dirt, water and a sponge's polysaccharide-protein-matrix skeleton",
+        toolgroups = {thumpy = 4},
+        nodes = {
+            {
+            match = "nc_terrain:dirt",
+            replace = "air"
+            },
+            {
+                y = -1,
+                match = "nc_sponge:sponge_living",
+                replace = "air"
+            }
+        },
+        items = {{name = modname .. ":sling", count = 1, scatter = 10}}
+    })
+else
 minetest.register_craft({
     output = modname .. ":sling",
     recipe = {
@@ -232,3 +254,4 @@ minetest.register_craft({
         {"","default:dirt_with_grass",""}
     },
 })
+end
