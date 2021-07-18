@@ -72,7 +72,7 @@ end
 mudsling.invertPlayerPhysics = invertPlayerPhysics
 
 
-local function generateAngularVel(name,vec)
+local function generateInitialVel(name,vec)
     if(name and type(name) == "string")then
         local player = minetest.get_player_by_name(name)
         local pos = player:get_pos()
@@ -81,7 +81,7 @@ local function generateAngularVel(name,vec)
         minetest.add_entity(pos, modname .. ":entity", sdata)
     end
 end
-mudsling.generateAngularVel = generateAngularVel
+mudsling.generateInitialVel = generateInitialVel
 
 
 local function enforceGravity(obj)
@@ -138,7 +138,7 @@ local function activateSling(name)
         local power = mudsling.players[name].power*10 or 40
         local vec = vector.multiply(minetest.get_player_by_name(name):get_look_dir(),-power)
         minetest.sound_play({name = "thwang_muddy"}, {to_player = name, gain = 0.25, pitch = 1})
-        mudsling.generateAngularVel(name,vec)
+        mudsling.generateInitialVel(name,vec)
     end
 end
 
