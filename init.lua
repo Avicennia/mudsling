@@ -5,30 +5,74 @@ local add_entity = minetest.add_entity
 
 local mudsling = {}
 mudsling.players = {}
-mudsling.GRAVITY_BASE = 0.987
 mudsling.POWER_MAX = 12
 
 minetest.after(4, function() end)
 
-
+-- Player index functions
 mudsling.checkPlayer = function(name)
+
     return mudsling.players[name]
+
 end
 
 mudsling.addPlayer = function(name)
     if(name and type(name) == "string")then
+
         mudsling.players[name] = {active = false, hud = 0, power = 1}
+
     end
 end
 
 mudsling.activate = function(name)
-    mudsling.players[name].active = true
+    if(mudsling.players[name])then
+
+        mudsling.players[name].active = true
+
+    end
 end
 
 mudsling.deactivate = function(name)
-    mudsling.players[name].active = false
+    if(mudsling.players[name])then
+
+        mudsling.players[name].active = false
+
+    end
 end
 
+mudsling.isOnGround = function(name) -- returns true if [name] is standing on a non-air node
+    local player = name and minetest.get_player_by_name(name)
+    
+    if(player)then
+
+        local pos_under = vector.add(player:get_pos(),{x = 0, y = -0.2, z = 0})
+        local node_under = minetest.get_node(pos_under)
+
+        return node_under.name ~= "air"
+
+    end
+
+end
+
+mudsling.processFlight = function()
+    -- periodic function for processing indexed players. Currently used for conferring fall-damage mitigation.
+    local playerpool = mudsling.players
+
+    for k,v in pairs(playerpool) do
+
+        if(mudsling.isOnGround(k))then
+
+            minetest.after(1, function()
+
+            -- using minetest.after to account for walkable nodes on top of actually solid nodes (eg. shrubs on top of dirt in default mapgen or reposed leaf nodes in nodecore).
+                
+            mudsling.deactivate(k)
+            end)
+
+        end
+
+    end
+end
 
 mudsling.incrementHud = function(name) -- increments player's power counter up by 1 and updates their HUD element accordingly.
     local player = minetest.get_player_by_name(name)
@@ -56,89 +100,22 @@ mudsling.incrementHud = function(name) -- increments player's power counter up b
 end
 
 
-local function invertPlayerPhysics(name, state)
-    -- removes gravity and jump if [state] is falsy and returns them if truthy
-    local player = minetest.get_player_by_name(name)
-    if(name and type(name) == "string" and player)then
-        local val = state and 1 or 0
-        local physics_params = player:get_physics_override()
-        physics_params.gravity = val
-        physics_params.jump = val
-        -- speed-removal removed to allow some degree of motion in-flight
-        player:set_physics_override(physics_params)
-    end
-end
-
-mudsling.invertPlayerPhysics = invertPlayerPhysics
-
-
-local function generateInitialVel(name,vec)
-    if(name and type(name) == "string")then
-        local player = minetest.get_player_by_name(name)
-        local pos = player:get_pos()
-        vec = vec or player:get_look_dir()
-        local sdata = minetest.serialize({name = name, vel = vec})
-        minetest.add_entity(pos, modname .. ":entity", sdata)
-    end
-end
-mudsling.generateInitialVel = generateInitialVel
-
-
-local function enforceGravity(obj)
-    -- draws down the object by subtracting from y-component of velocity vector.
-    local vel = obj:get_velocity()
-    vel.y = vel.y - mudsling.GRAVITY_BASE
-    obj:set_velocity(vel)
-end
-mudsling.enforceGravity = enforceGravity
-
-
-local function attenuateVel(obj)
-    -- reduces all components of velocity vector; wannabe air resistance.
-    local vel = obj:get_velocity()
-    vel = vector.divide(vel,1.0005)
-    obj:set_velocity(vel)
-end
-mudsling.attenuateVel = attenuateVel
-
-
-local function setProps(obj,propdef)
-    -- performs set_properties on as many key-value pairs as present in propdef.
-    if(obj and obj:get_properties())then
-        local props = obj:get_properties()
-        
-        for k,v in pairs(propdef)do
-            if(props[k])then
-                props[k] = v
-            end
-        end
-        
-        obj:set_properties(props)
-    end
-end
-
-mudsling.setProps = setProps
-
-
-local function getProp(obj, label)
-    -- returns the value of the property with the key [label] if it exists.
-    if(obj and obj:get_properties())then
-        local props = obj:get_properties()
-        return props[label]
-    end
-end
-
-mudsling.getProp = getProp
-
 local function activateSling(name)
     -- Intended to kick-start the functions required for launching to work.
-    if(not (mudsling.checkPlayer(name) and mudsling.checkPlayer(name).active))then
+    if(mudsling.players[name])then
+        local player = minetest.get_player_by_name(name)
 
-        mudsling.activate(name)
+        minetest.after(1.2, function() mudsling.activate(name) end)
+        -- activate the sling with delay
+
         local power = mudsling.players[name].power*10 or 40
+
         local vec = vector.multiply(minetest.get_player_by_name(name):get_look_dir(),-power)
+
+        player:add_player_velocity(vec)
+
         minetest.sound_play({name = "thwang_muddy"}, {to_player = name, gain = 0.25, pitch = 1})
-        mudsling.generateInitialVel(name,vec)
+
     end
 end
 
@@ -168,66 +145,34 @@ register_craftitem(iname,{
 })
 
 
-
-
--- ENTITYDEF
-
-local entdef = {
-    physical = true,
-    collide_with_objects = false,
-    pointable = false,
-    is_visible = false,
-    static_save = false,
-    weight = 5,
-    collisionbox = {-0.5, 0.0, -0.5, 0.5, 1.0, 0.5},
-    selectionbox = {-0.5, 0.0, -0.5, 0.5, 1.0, 0.5},
-
-    on_activate = function(self, staticdata)
-        
-        self.object:set_armor_groups({immortal = 1}) -- become immortal, it deserves it anyway.
-        local data = minetest.deserialize(staticdata)
-
-        -- player stuff
-        mudsling.setProps(self.object,{infotext = data.name})
-        mudsling.invertPlayerPhysics(data.name)
-
-        -- set starting velocity
-        self.object:set_velocity(data.vel)
-
-    end,
-    on_step = function(self)
-        local obj = self.object
-        local name = mudsling.getProp(obj,"infotext") -- change
-        local player = minetest.get_player_by_name(name)
-        local pos = obj:get_pos()
-        local is_shift_key_pressed = player:get_player_control().sneak
-
-        if(obj:get_velocity().y == 0 or is_shift_key_pressed)then        
-            
-            mudsling.deactivate(name)
-            mudsling.invertPlayerPhysics(name,true)
-            obj:remove()
-
-        else
-
-            obj:set_velocity(vector.add(obj:get_velocity(),vector.divide(player:get_velocity(),10)))
-            
-            mudsling.attenuateVel(obj)
-            mudsling.enforceGravity(obj)
-
-            player:move_to(pos)
-            
-        end
-        
-    end
-}
-register_entity(modname .. ":entity", entdef)
+-- SERVERSTEPS
 
 minetest.register_on_joinplayer(function(obj)
     local name = obj:get_player_name()
     mudsling.addPlayer(name)
 end)
-if(nodecore and nodecore.register_craft)then
+minetest.register_on_player_hpchange(function(player, hp_change, reason) -- fall damage mitigation
+    local name = player:get_player_name()
+
+    if(mudsling.checkPlayer(name) and mudsling.players[name].active and reason.type == 'fall')then
+        -- player must be active, ie. in-flight to gain protection
+        hp_change = 0
+    end        
+return hp_change
+end, true)
+
+
+
+
+-- CRAFTING
+
+
+if(nodecore)then
+
+    nodecore.interval(0.5, function() mudsling.processFlight() end)
+    -- use nodecore's builtin periodic-action function in the presence of nodecore
+
+    if(nodecore.register_craft)then
     nodecore.register_craft({
         action = "pummel",
         label = "Shape the most exquisite slingshot out of dirt, water and a sponge's polysaccharide-protein-matrix skeleton",
@@ -245,13 +190,20 @@ if(nodecore and nodecore.register_craft)then
         },
         items = {{name = modname .. ":sling", count = 1, scatter = 10}}
     })
+    end
 else
+    
+    
+minetest.register_globalstep(function() -- use minetest builtin globalstep in absence of nodecore
+    mudsling.processFlight()
+end)
+
 minetest.register_craft({
     output = modname .. ":sling",
     recipe = {
         {"default:dirt_with_grass","bucket:bucket_water","default:dirt_with_grass"},
         {"default:dirt_with_grass","default:dirt_with_grass","default:dirt_with_grass"},
         {"","default:dirt_with_grass",""}
-    },
+    }
 })
 end
