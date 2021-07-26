@@ -100,7 +100,7 @@ mudsling.incrementHud = function(name) -- increments player's power counter up b
 end
 
 
-local function activateSling(name)
+local function activateSling(name, itemstack)
     -- Intended to kick-start the functions required for launching to work.
     if(mudsling.players[name])then
         local player = minetest.get_player_by_name(name)
@@ -114,7 +114,10 @@ local function activateSling(name)
 
         player:add_player_velocity(vec)
 
+        itemstack:add_wear(power*110)
+        
         minetest.sound_play({name = "thwang_muddy"}, {to_player = name, gain = 0.25, pitch = 1})
+        
 
     end
 end
@@ -136,11 +139,13 @@ register_craftitem(iname,{
     end,
     on_place = function(itemstack,placer)
         local name = placer:get_player_name()
-        mudsling.activateSling(name)
+        mudsling.activateSling(name, itemstack)
+        return itemstack
     end,
     on_secondary_use = function(itemstack, user, pointed_thing)
         local name = user:get_player_name()
-        mudsling.activateSling(name)
+        mudsling.activateSling(name, itemstack)
+        return itemstack
     end
 })
 
