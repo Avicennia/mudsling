@@ -19,7 +19,7 @@ end
 mudsling.addPlayer = function(name)
     if(name and type(name) == "string")then
 
-        mudsling.players[name] = {active = false, hud = 0, power = 1}
+        mudsling.players[name] = {active = false, hud = 110, power = 1}
 
     end
 end
@@ -40,15 +40,26 @@ mudsling.deactivate = function(name)
     end
 end
 
+mudsling.giveTakeoffClearance = function(name)
+    if(mudsling.checkPlayer(name))then
+        mudsling.players[name].takeoff = true
+        minetest.after(1.2, function() mudsling.players[name].takeoff = nil end)
+    end
+end
+
+mudsling.isTakingFlight = function(name)
+    return mudsling.checkPlayer(name) and mudsling.players[name].takeoff
+end
+
 mudsling.isOnGround = function(name) -- returns true if [name] is standing on a non-air node
     local player = name and minetest.get_player_by_name(name)
     
     if(player)then
 
-        local pos_under = vector.add(player:get_pos(),{x = 0, y = -0.2, z = 0})
+        local pos_under = vector.add(player:get_pos(),{x = 0, y = -0.05, z = 0})
         local node_under = minetest.get_node(pos_under)
-
-        return node_under.name ~= "air"
+        local walkable = minetest.registered_nodes[node_under.name].walkable
+        return node_under.name ~= "air" and walkable
 
     end
 
@@ -60,14 +71,9 @@ mudsling.processFlight = function()
 
     for k,v in pairs(playerpool) do
 
-        if(mudsling.isOnGround(k))then
-
-            minetest.after(1, function()
-
-            -- using minetest.after to account for walkable nodes on top of actually solid nodes (eg. shrubs on top of dirt in default mapgen or reposed leaf nodes in nodecore).
-                
+        if( (not mudsling.isTakingFlight(k)) and mudsling.isOnGround(k))then
+        
             mudsling.deactivate(k)
-            end)
 
         end
 
@@ -87,38 +93,38 @@ mudsling.incrementHud = function(name) -- increments player's power counter up b
         power = mudsling.players[name].power
     end
 
-    
-    mudsling.players[name].id = player:hud_add({
+    mudsling.players[name].hud = player:hud_add({
         hud_elem_type = "image",
         position = {x = 0.55, y = 0.5},
         scale = {x = 2, y = 2},
         size = {x = 100, y = 100},
+        z_index = 110, -- fixed healthbar removal bug?
         text = "[combine:16x16:0,0=powerbar.png:4,"..(16 - 9 - power/2).."=mudball.png" -- 9 from -8 for full texture height plus 1 pixel for visible border
     })
-    minetest.after(4, function() player:hud_remove(id)end) -- NB: poor patch, redo this
-    
+    minetest.after(4, function() player:hud_remove(id)end) -- NB: poor patch, redo this.
 end
 
 
 local function activateSling(name, itemstack)
     -- Intended to kick-start the functions required for launching to work.
-    if(mudsling.players[name])then
+
+    if(mudsling.players[name] and not mudsling.players[name].active)then
+
         local player = minetest.get_player_by_name(name)
 
-        minetest.after(1.2, function() mudsling.activate(name) end)
-        -- activate the sling with delay
+
+        mudsling.giveTakeoffClearance(name) -- prevent globalstep from removing protection while still close to ground
+        mudsling.activate(name) -- set player in flight-mode
 
         local power = mudsling.players[name].power*10 or 40
 
         local vec = vector.multiply(minetest.get_player_by_name(name):get_look_dir(),-power)
 
         player:add_player_velocity(vec)
-
         itemstack:add_wear(power*110)
         
         minetest.sound_play({name = "thwang_muddy"}, {to_player = name, gain = 0.25, pitch = 1})
         
-
     end
 end
 
@@ -201,6 +207,7 @@ else
     
 minetest.register_globalstep(function() -- use minetest builtin globalstep in absence of nodecore
     mudsling.processFlight()
+    minetest.chat_send_all(minetest.serialize(mudsling.players))
 end)
 
 minetest.register_craft({
