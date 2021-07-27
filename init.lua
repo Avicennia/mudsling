@@ -207,7 +207,6 @@ else
     
 minetest.register_globalstep(function() -- use minetest builtin globalstep in absence of nodecore
     mudsling.processFlight()
-    minetest.chat_send_all(minetest.serialize(mudsling.players))
 end)
 
 minetest.register_craft({
